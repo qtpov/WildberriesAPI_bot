@@ -1,0 +1,16 @@
+# Системные файлы
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+
+# Виртуальное окружение
+venv/
+.venv/
+
+# Файлы конфигурации
+.env
+
+# Docker
+/docker-compose.override.yml
+/docker-compose.override.yaml
