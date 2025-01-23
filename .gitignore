@@ -10,6 +10,7 @@ venv/
 
 # Файлы конфигурации
 .env
+config.py
 
 # Docker
 /docker-compose.override.yml

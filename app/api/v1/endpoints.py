@@ -5,11 +5,11 @@ import requests
 from app.core.configurate import SessionLocal, scheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from db.models import Product
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends,APIRouter
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-app = FastAPI()
+router = APIRouter()
 
 class ProductRequest(BaseModel):
     artikul: int
@@ -20,14 +20,16 @@ class ProductResponse(BaseModel):
     rating: float
     stock_quantity: int
     updated_at: datetime
+
     class Config:
-        orm_mode = True
+        from_attributes = True  # Заменили orm_mode на from_attributes
+
 
 async def get_db():
     async with SessionLocal() as session:
         yield session
 
-@app.post("/api/v1/products", response_model=ProductResponse)
+@router.post("/api/v1/products", response_model=ProductResponse)
 async def add_product(request: ProductRequest, db: AsyncSession = Depends(get_db)):
     product_data = fetch_product_data(request.artikul)
     product = await db.get(Product, request.artikul)
@@ -43,9 +45,9 @@ async def add_product(request: ProductRequest, db: AsyncSession = Depends(get_db
     await db.refresh(product)
     return product
 
-@app.get("/api/v1/subscribe/{artikul}")
+@router.get("/api/v1/subscribe/{artikul}")
 async def subscribe_product(artikul: int, db: AsyncSession = Depends(get_db)):
-    scheduler.add_job(fetch_and_store_product, args=[artikul, db], trigger=IntervalTrigger(minutes=30), id=str(artikul), replace_existing=True)
+    scheduler.add_job(fetch_and_store_product, args=[artikul], kwargs={"db": db}, trigger=IntervalTrigger(minutes=30), id=str(artikul), replace_existing=True)
     return {"message": f"Subscription started for artikul {artikul}"}
 
 async def fetch_and_store_product(artikul: int, db: AsyncSession):
