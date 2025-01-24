@@ -125,7 +125,8 @@ async def get_product_data(message: types.Message, state: FSMContext):
             product_data = await get_product_from_db(artikul, db)
 
             if product_data == None:
-                await message.answer("Товар с таким артикулом не найден.")
+                await message.answer("Товар с таким артикулом не найден.",
+                                     reply_markup=get_keyboard_start())
             else:
                 # Если данные найдены, выводим их пользователю
                 await message.answer(
@@ -139,7 +140,8 @@ async def get_product_data(message: types.Message, state: FSMContext):
 
             await state.clear()  # Очищаем состояние
         except ValueError:
-            await message.answer("Пожалуйста, отправьте правильный артикул (число).")
+            await message.answer("Попробуйте снова, отправьте правильный артикул (число).",
+                                 reply_markup=get_keyboard_start())
             await state.clear()
 
 # Хендлер для получения артикула и работы с базой данных
@@ -167,16 +169,19 @@ async def add_product_data(message: types.Message, state: FSMContext):
                         reply_markup=create_subscribe_button(artikul)
                     )
                 else:
-                    await message.answer("Не удалось добавить товар")
+                    await message.answer("Не удалось добавить товар",
+                                     reply_markup=get_keyboard_start())
                     await state.clear()
                     return
             else:
-                await message.answer("Товар с таким артикулом уже есть в базе.")
+                await message.answer("Товар с таким артикулом уже есть в базе.",
+                                     reply_markup=get_keyboard_start())
 
             await state.clear()  # Очищаем состояние
 
         except ValueError:
-            await message.answer("Пожалуйста, отправьте правильный артикул (число).")
+            await message.answer("Попробуйте снова, отправьте правильный артикул (число).",
+                                     reply_markup=get_keyboard_start())
             await state.clear()
 
 # Хендлер для подписки
