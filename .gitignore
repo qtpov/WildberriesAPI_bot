@@ -8,10 +8,26 @@ __pycache__/
 venv/
 .venv/
 
+# Игнорировать файл с токенами
+app/core/configurate.py
 # Файлы конфигурации
 .env
 config.py
 
 # Docker
-/docker-compose.override.yml
-/docker-compose.override.yaml
+docker-compose.override.yml
+docker-compose.override.yaml
+
+# IDE / текстовые редакторы
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+
+# Прочее
+*.log
+*.pot
+*.mo
+*.pid
