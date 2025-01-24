@@ -1,29 +1,37 @@
-version: "3.8"
+version: '3.9'
 
 services:
-  app:
+  api:
     build:
       context: .
-    container_name: wildberries_api_bot
+      dockerfile: docker/Dockerfile
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:pa$$word@db:5432/wildberries
-    depends_on:
-      - db
+      - DATABASE_URL=postgresql+asyncpg://user:password@db/project_db
+    volumes:
+      - .:/app
+
+  bot:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    environment:
+      - TELEGRAM_API_TOKEN=your-telegram-token
+      - DATABASE_URL=postgresql+asyncpg://user:password@db/project_db
+    volumes:
+      - .:/app
 
   db:
     image: postgres:15
-    container_name: wildberries_db
-    restart: always
     environment:
-      POSTGRES_USER: postgres
+      POSTGRES_USER: user
       POSTGRES_PASSWORD: password
-      POSTGRES_DB: wildberries
+      POSTGRES_DB: project_db
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - db_data:/var/lib/postgresql/data
 
 volumes:
-  postgres_data:
+  db_data:

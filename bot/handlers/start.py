@@ -181,20 +181,22 @@ async def add_product_data(message: types.Message, state: FSMContext):
 
 # Хендлер для подписки
 @dp.callback_query(F.data.startswith("subscribe_"))
-async def handle_subscribe(callback_query: types.CallbackQuery):
-    # Извлекаем артикул товара из callback_data
-    artikul = int(callback_query.data.split('_')[1])
+async def handle_subscribe(callback_query: types.CallbackQuery, state: FSMContext):
+    artikul = int(callback_query.data.split("_")[1])
 
-    # Здесь вы можете добавить логику подписки, например, сохранение информации о подписке в базе данных.
     async with SessionLocal() as db:
-        # Логика подписки (например, добавление записи о подписке в базу данных)
-        # Предполагаем, что у вас есть модель Subscription для хранения подписок пользователей
-        subscription = Subscription(user_id=callback_query.from_user.id, artikul=artikul)
-        db.add(subscription)
-        await db.commit()
+        result = await db.execute(select(Product).filter(Product.artikul == artikul))
+        product = result.scalar_one_or_none()
+        if not product:
+            await callback_query.message.answer("Продукт не найден.")
+        else:
+            # Создаем подписку
+            subscription = Subscription(user_id=callback_query.from_user.id, artikul=artikul)
+            db.add(subscription)
+            await db.commit()
 
-    # Ответ пользователю
-    await callback_query.answer("Вы успешно подписались на обновления товара.")
+            await callback_query.message.answer(f"Подписка на {product.name} оформлена.")
+    await callback_query.answer()
 
 
 # Основная функция для запуска бота

@@ -1,21 +1,28 @@
 from datetime import datetime
 import logging
 import aiohttp
-from app.core.configurate import SessionLocal, scheduler
 from apscheduler.triggers.interval import IntervalTrigger
-from db.models import Product
 from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
-
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from pydantic import BaseModel
+from app.core.configurate import SessionLocal, scheduler
+from db.models import Product
+from app.api.v1.utils import fetch_product_data  # Импорт из utils.py
+# Остальной код без изменений
+
+
+from app.api.v1.scheduler import scheduled_product_update
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 
 router = APIRouter()
 
+
 class ProductRequest(BaseModel):
     artikul: int
+
 
 class ProductResponse(BaseModel):
     name: str
@@ -25,49 +32,33 @@ class ProductResponse(BaseModel):
     updated_at: datetime
 
     class Config:
-        from_attributes = True  # Замена orm_mode
+        from_attributes = True
 
-# Асинхронный генератор сессии базы данных
+
 async def get_db():
     async with SessionLocal() as session:
         yield session
 
-# Асинхронная функция для получения данных с API Wildberries
-async def fetch_product_data(artikul: int):
-    url = f"https://card.wb.ru/cards/v1/detail?appType=1&curr=rub&dest=-1257786&spp=30&nm={artikul}"
-    logging.info(f"Fetching product data for artikul {artikul}")
 
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as response:
-                if response.status != 200:
-                    logging.error(f"Failed to fetch product data for artikul {artikul}, status: {response.status}")
-                    raise HTTPException(status_code=404, detail="Product not found on Wildberries")
-                data = await response.json()
-                product = data["data"]["products"][0]
-                logging.info(f"Product data fetched for artikul {artikul}")
-                return product
-    except Exception as e:
-        logging.error(f"Error fetching product data for artikul {artikul}: {e}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
-
-# Асинхронная функция для добавления товара в базу данных
 async def add_product_to_db(artikul: int, db: AsyncSession):
     product = await fetch_product_data(artikul)
+    stock_quantity = sum(
+        stock["qty"] for size in product.get("sizes", []) for stock in size.get("stocks", [])
+    )
     new_product = Product(
         artikul=artikul,
         name=product["name"],
         price=product["salePriceU"] / 100,
         rating=product.get("reviewRating", 0),
-        stock_quantity=product.get("stock_quantity", 0)
+        stock_quantity=stock_quantity,
     )
-
     db.add(new_product)
     await db.commit()
     await db.refresh(new_product)
     return new_product
 
-@router.post("/product/add", response_model=ProductResponse)
+
+@router.post("/api/v1/products", response_model=ProductResponse)
 async def add_product(request: ProductRequest, db: AsyncSession = Depends(get_db)):
     try:
         product = await add_product_to_db(request.artikul, db)
@@ -75,11 +66,21 @@ async def add_product(request: ProductRequest, db: AsyncSession = Depends(get_db
     except HTTPException as e:
         raise e
 
-# Функция для обновления продуктов через расписание
-@scheduler.scheduled_job(IntervalTrigger(minutes=30))
-async def scheduled_product_update():
-    async with SessionLocal() as db:
-        products = await db.execute(Product.__table__.select())
-        for product in products:
-            await add_product_to_db(product.artikul, db)
-            logging.info(f"Updated product {product.artikul} in database")
+
+@router.get("/api/v1/subscribe/{artikul}")
+async def subscribe_artikul(
+    artikul: int,
+    db: AsyncSession = Depends(get_db)
+):
+    product = await db.execute(select(Product).filter(Product.artikul == artikul))
+    if not product.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Product not found in database")
+
+    scheduler.add_job(
+        scheduled_product_update,
+        trigger=IntervalTrigger(minutes=0.5),
+        args=[artikul],
+        id=f"update_{artikul}",
+        replace_existing=True,
+    )
+    return {"message": f"Subscription for artikul {artikul} started."}
