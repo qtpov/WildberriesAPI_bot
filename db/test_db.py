@@ -14,5 +14,7 @@ async def test_connection():
         print("Подключение к базе данных установлено успешно!")
         await conn.run_sync(Base.metadata.create_all)
 
+
+
 import asyncio
 asyncio.run(test_connection())

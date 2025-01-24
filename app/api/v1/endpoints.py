@@ -1,13 +1,16 @@
 from datetime import datetime
-
-
-import requests
+import logging
+import aiohttp
 from app.core.configurate import SessionLocal, scheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from db.models import Product
-from fastapi import FastAPI, HTTPException, Depends,APIRouter
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
+
 from sqlalchemy.ext.asyncio import AsyncSession
+
+# Настройка логирования
+logging.basicConfig(level=logging.INFO)
 
 router = APIRouter()
 
@@ -22,60 +25,86 @@ class ProductResponse(BaseModel):
     updated_at: datetime
 
     class Config:
-        from_attributes = True  # Заменили orm_mode на from_attributes
+        from_attributes = True  # Замена orm_mode
 
-
+# Асинхронный генератор сессии базы данных
 async def get_db():
     async with SessionLocal() as session:
         yield session
 
+# Асинхронная функция для получения данных с API Wildberries
+async def fetch_product_data(artikul: int):
+    url = f"https://card.wb.ru/cards/v1/detail?appType=1&curr=rub&dest=-1257786&spp=30&nm={artikul}"
+    logging.info(f"Fetching product data for artikul {artikul}")
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                if response.status != 200:
+                    logging.error(f"Failed to fetch product data for artikul {artikul}, status: {response.status}")
+                    raise HTTPException(status_code=404, detail="Product not found on Wildberries")
+                data = await response.json()
+                product = data["data"]["products"][0]
+                logging.info(f"Product data fetched for artikul {artikul}")
+                return product
+    except Exception as e:
+        logging.error(f"Error fetching product data for artikul {artikul}: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+# Асинхронная функция для добавления товара в базу данных
+async def add_product_to_db(artikul: int, db: AsyncSession):
+    product = await fetch_product_data(artikul)
+    new_product = Product(
+        artikul=artikul,
+        name=product["name"],
+        price=product["salePriceU"] / 100,
+        rating=product.get("reviewRating", 0),
+        stock_quantity=product.get("stock_quantity", 0)
+    )
+
+    db.add(new_product)
+    await db.commit()
+    await db.refresh(new_product)
+    return new_product
+
+# Эндпоинт для добавления товара в базу данных
 @router.post("/api/v1/products", response_model=ProductResponse)
 async def add_product(request: ProductRequest, db: AsyncSession = Depends(get_db)):
-    product_data = fetch_product_data(request.artikul)
-    product = await db.get(Product, request.artikul)
-    if product:
-        product.name = product_data["name"]
-        product.price = product_data["price"]
-        product.rating = product_data["rating"]
-        product.stock_quantity = product_data["stock_quantity"]
-    else:
-        product = Product(**product_data)
-    db.add(product)
-    await db.commit()
-    await db.refresh(product)
-    return product
+    try:
+        product = await add_product_to_db(request.artikul, db)
+        return product
+    except HTTPException as e:
+        raise e
 
+# Эндпоинт для подписки на обновления товара каждые 30 минут
 @router.get("/api/v1/subscribe/{artikul}")
-async def subscribe_product(artikul: int, db: AsyncSession = Depends(get_db)):
-    scheduler.add_job(fetch_and_store_product, args=[artikul], kwargs={"db": db}, trigger=IntervalTrigger(minutes=30), id=str(artikul), replace_existing=True)
-    return {"message": f"Subscription started for artikul {artikul}"}
+async def subscribe_to_product_updates(artikul: int, db: AsyncSession = Depends(get_db)):
+    async def update_product_data():
+        try:
+            await add_product_to_db(artikul, db)
+            logging.info(f"Product {artikul} updated successfully.")
+        except Exception as e:
+            logging.error(f"Error updating product {artikul}: {e}")
 
-async def fetch_and_store_product(artikul: int, db: AsyncSession):
-    product_data = fetch_product_data(artikul)
-    product = await db.get(Product, artikul)
-    if product:
-        product.name = product_data["name"]
-        product.price = product_data["price"]
-        product.rating = product_data["rating"]
-        product.stock_quantity = product_data["stock_quantity"]
-    else:
-        product = Product(**product_data)
-    db.add(product)
-    await db.commit()
+    # Настроим расписание для обновлений каждые 30 минут
+    scheduler.add_job(
+        update_product_data,
+        IntervalTrigger(minutes=30),
+        id=f"update_{artikul}",
+        replace_existing=True
+    )
 
-# Fetch Product Data Helper
+    # Запускаем обновление сразу при подписке
+    await update_product_data()
 
-def fetch_product_data(artikul: int):
-    url = f"https://card.wb.ru/cards/v1/detail?appType=1&curr=rub&dest=-1257786&spp=30&nm={artikul}"
-    response = requests.get(url)
-    if response.status_code != 200:
-        raise HTTPException(status_code=404, detail="Product not found on Wildberries")
-    data = response.json()
-    product = data["data"]["products"][0]
-    return {
-        "artikul": artikul,
-        "name": product["name"],
-        "price": product["salePriceU"] / 100,
-        "rating": product.get("rating", 0),
-        "stock_quantity": sum(s["qty"] for s in product.get("sizes", []))
-    }
+    return {"message": f"Subscribed to updates for product {artikul} every 30 minutes."}
+
+# Функция для обновления всех товаров через расписание (по условию задачи)
+@scheduler.scheduled_job(IntervalTrigger(minutes=30))
+async def scheduled_product_update():
+    async with SessionLocal() as db:
+        products = await db.execute(Product.__table__.select())
+        for product in products:
+            await add_product_to_db(product.artikul, db)
+            logging.info(f"Updated product {product.artikul} in database")
+
