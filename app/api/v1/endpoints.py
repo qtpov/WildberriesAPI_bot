@@ -67,8 +67,7 @@ async def add_product_to_db(artikul: int, db: AsyncSession):
     await db.refresh(new_product)
     return new_product
 
-# Эндпоинт для добавления товара в базу данных
-@router.post("/api/v1/products", response_model=ProductResponse)
+@router.post("/product/add", response_model=ProductResponse)
 async def add_product(request: ProductRequest, db: AsyncSession = Depends(get_db)):
     try:
         product = await add_product_to_db(request.artikul, db)
@@ -76,30 +75,7 @@ async def add_product(request: ProductRequest, db: AsyncSession = Depends(get_db
     except HTTPException as e:
         raise e
 
-# Эндпоинт для подписки на обновления товара каждые 30 минут
-@router.get("/api/v1/subscribe/{artikul}")
-async def subscribe_to_product_updates(artikul: int, db: AsyncSession = Depends(get_db)):
-    async def update_product_data():
-        try:
-            await add_product_to_db(artikul, db)
-            logging.info(f"Product {artikul} updated successfully.")
-        except Exception as e:
-            logging.error(f"Error updating product {artikul}: {e}")
-
-    # Настроим расписание для обновлений каждые 30 минут
-    scheduler.add_job(
-        update_product_data,
-        IntervalTrigger(minutes=30),
-        id=f"update_{artikul}",
-        replace_existing=True
-    )
-
-    # Запускаем обновление сразу при подписке
-    await update_product_data()
-
-    return {"message": f"Subscribed to updates for product {artikul} every 30 minutes."}
-
-# Функция для обновления всех товаров через расписание (по условию задачи)
+# Функция для обновления продуктов через расписание
 @scheduler.scheduled_job(IntervalTrigger(minutes=30))
 async def scheduled_product_update():
     async with SessionLocal() as db:
@@ -107,4 +83,3 @@ async def scheduled_product_update():
         for product in products:
             await add_product_to_db(product.artikul, db)
             logging.info(f"Updated product {product.artikul} in database")
-

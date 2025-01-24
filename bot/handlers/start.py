@@ -5,12 +5,13 @@ from aiogram.fsm.state import StatesGroup, State
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from app.core.configurate import BOT_TOKEN  # Подключение вашего токена
-from db.models import Product  # Импорт модели для работы с базой данных
+from app.core.configurate import BOT_TOKEN
+from db.models import Product, Subscription
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 import aiohttp
-from app.core.configurate import SessionLocal  # Подключение к сессии базы данных
+from bot.keyboards.inline import get_keyboard_start,create_subscribe_button
+from app.core.configurate import SessionLocal
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -29,13 +30,6 @@ async def get_db():
     async with SessionLocal() as db:
         yield db
 
-# Клавиатура для стартового сообщения
-def get_keyboard_start():
-    buttons = [
-        [InlineKeyboardButton(text='Получить данные по товару', callback_data='get_artikul')],
-        [InlineKeyboardButton(text='Добавить товар в базу (Админ)', callback_data='add_product')]
-    ]
-    return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 # Хендлер для команды /start
 @dp.message(Command("start"))
@@ -119,6 +113,7 @@ async def add_product_to_db(artikul: int, db: AsyncSession):
         logging.error(f"Error fetching product data from API: {e}")
         return None
 
+
 # Хендлер для получения артикула и работы с базой данных
 @dp.message(FindArtikul.choosing_artikul_for_get)
 async def get_product_data(message: types.Message, state: FSMContext):
@@ -138,7 +133,8 @@ async def get_product_data(message: types.Message, state: FSMContext):
                     f"Артикул: {artikul}\n"
                     f"Цена: {product_data['price']} руб.\n"
                     f"Рейтинг товара: {product_data['rating']}\n"
-                    f"Количество на складе: {product_data['stock_quantity']}"
+                    f"Количество на складе: {product_data['stock_quantity']}",
+                    reply_markup=create_subscribe_button(artikul)  # Добавляем кнопку подписки
                 )
 
             await state.clear()  # Очищаем состояние
@@ -148,7 +144,7 @@ async def get_product_data(message: types.Message, state: FSMContext):
 
 # Хендлер для получения артикула и работы с базой данных
 @dp.message(FindArtikul.choosing_artikul_for_add)
-async def get_product_data(message: types.Message, state: FSMContext):
+async def add_product_data(message: types.Message, state: FSMContext):
     async with SessionLocal() as db:
         try:
             artikul = int(message.text.strip())  # Преобразуем в int
@@ -167,7 +163,8 @@ async def get_product_data(message: types.Message, state: FSMContext):
                         f"Артикул: {artikul}\n"
                         f"Цена: {product_data['price']} руб.\n"
                         f"Рейтинг товара: {product_data['rating']}\n"
-                        f"Количество на складе: {product_data['stock_quantity']}"
+                        f"Количество на складе: {product_data['stock_quantity']}",
+                        reply_markup=create_subscribe_button(artikul)
                     )
                 else:
                     await message.answer("Не удалось добавить товар")
@@ -181,6 +178,23 @@ async def get_product_data(message: types.Message, state: FSMContext):
         except ValueError:
             await message.answer("Пожалуйста, отправьте правильный артикул (число).")
             await state.clear()
+
+# Хендлер для подписки
+@dp.callback_query(F.data.startswith("subscribe_"))
+async def handle_subscribe(callback_query: types.CallbackQuery):
+    # Извлекаем артикул товара из callback_data
+    artikul = int(callback_query.data.split('_')[1])
+
+    # Здесь вы можете добавить логику подписки, например, сохранение информации о подписке в базе данных.
+    async with SessionLocal() as db:
+        # Логика подписки (например, добавление записи о подписке в базу данных)
+        # Предполагаем, что у вас есть модель Subscription для хранения подписок пользователей
+        subscription = Subscription(user_id=callback_query.from_user.id, artikul=artikul)
+        db.add(subscription)
+        await db.commit()
+
+    # Ответ пользователю
+    await callback_query.answer("Вы успешно подписались на обновления товара.")
 
 
 # Основная функция для запуска бота

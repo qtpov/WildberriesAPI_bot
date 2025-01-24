@@ -1,0 +1,10 @@
+aiogram==3.17.0
+sqlalchemy==2.0.37
+asyncpg==0.30.0
+python-dotenv==1.0.1
+apscheduler==3.11.0
+requests==2.32.3
+uvicorn==0.22.0
+pydantic==2.10.5
+fastapi==0.115.7
+psycopg2==2.9.10
