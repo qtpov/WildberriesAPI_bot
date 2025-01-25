@@ -78,7 +78,7 @@ async def subscribe_artikul(
 
     scheduler.add_job(
         scheduled_product_update,
-        trigger=IntervalTrigger(minutes=0.5),
+        trigger=IntervalTrigger(minutes=30),
         args=[artikul],
         id=f"update_{artikul}",
         replace_existing=True,
