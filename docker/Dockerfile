@@ -8,10 +8,11 @@ WORKDIR /app
 COPY requirements.txt .
 
 # Устанавливаем зависимости системы и Python-пакеты в одном слое, чтобы сократить количество слоев
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y \
     gcc libpq-dev && \
     pip install --no-cache-dir -r requirements.txt && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
+
 
 # Копируем весь проект в контейнер
 COPY . .
