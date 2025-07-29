@@ -5,10 +5,9 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.api.v1.scheduler import scheduler, load_jobs
 app = FastAPI()
 
-# Включаем маршруты из других частей проекта
 app.include_router(api_app, prefix="/api/v1", tags=["products"])
 
-# Планировщик задач (если он используется в другом месте)
+# Планировщик задач 
 scheduler = AsyncIOScheduler()
 
 
@@ -19,11 +18,9 @@ async def startup():
         await conn.run_sync(Base.metadata.create_all)
     # Загружаем задачи при старте приложения
     load_jobs()
-    # Запуск планировщика
     scheduler.start()
 
 
 @app.on_event("shutdown")
 async def shutdown():
-    # Остановка планировщика
     scheduler.shutdown()
