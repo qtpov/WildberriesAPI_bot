@@ -20,12 +20,10 @@ logging.basicConfig(level=logging.INFO)
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# Определение состояния для FSM
 class FindArtikul(StatesGroup):
     choosing_artikul_for_get = State()
     choosing_artikul_for_add = State()
 
-# Функция для получения сессии базы данных
 async def get_db():
     async with SessionLocal() as db:
         yield db
@@ -40,18 +38,17 @@ async def start(message: types.Message):
 @dp.callback_query(F.data == 'get_artikul')
 async def get_art(callback: types.CallbackQuery, state: FSMContext):
     await callback.message.answer("Пришлите артикул.")
-    await callback.answer()  # Закрываем callback
-    await state.set_state(FindArtikul.choosing_artikul_for_get)  # Переход в состояние выбора артикула
+    await callback.answer()  
+    await state.set_state(FindArtikul.choosing_artikul_for_get)  
 
 # Хендлер для кнопки "Добавить товар в базу (Админ)"
 @dp.callback_query(F.data == 'add_product')
 async def add_product(callback: types.CallbackQuery, state: FSMContext):
     await callback.message.answer("Отправьте артикул для добавления в базу.")
-    await callback.answer()  # Закрываем callback
-    await state.set_state(FindArtikul.choosing_artikul_for_add)  # Переход в состояние выбора артикула
+    await callback.answer()  
+    await state.set_state(FindArtikul.choosing_artikul_for_add)  
 
 # Функция для получения данных о товаре из базы через SQLAlchemy
-
 async def get_product_from_db(artikul: int, db: AsyncSession):
     try:
         result = await db.execute(select(Product).filter(Product.artikul == artikul))
@@ -72,14 +69,12 @@ async def get_product_from_db(artikul: int, db: AsyncSession):
 
 # Функция для добавления товара в базу через API
 async def add_product_to_db(artikul: int, db: AsyncSession):
-    # Сначала проверяем, есть ли товар в базе
+
     existing_product = await get_product_from_db(artikul, db)
     if existing_product:
-        # Если товар уже есть в базе, не добавляем его
         logging.info(f"Product with artikul {artikul} already exists in database.")
         return existing_product
 
-    # Если товара нет в базе, пытаемся получить данные через API
     url = f"https://card.wb.ru/cards/v1/detail?appType=1&curr=rub&dest=-1257786&spp=30&nm={artikul}"
     try:
         async with aiohttp.ClientSession() as session:
@@ -119,26 +114,23 @@ async def add_product_to_db(artikul: int, db: AsyncSession):
 async def get_product_data(message: types.Message, state: FSMContext):
     async with SessionLocal() as db:
         try:
-            artikul = int(message.text.strip())  # Преобразуем в int
-
-            # Проверка, есть ли товар в базе данных
+            artikul = int(message.text.strip())
             product_data = await get_product_from_db(artikul, db)
 
             if product_data == None:
                 await message.answer("Товар с таким артикулом не найден.",
                                      reply_markup=get_keyboard_start())
             else:
-                # Если данные найдены, выводим их пользователю
-                await message.answer(
+                    await message.answer(
                     f"Название товара: {product_data['name']}\n"
                     f"Артикул: {artikul}\n"
                     f"Цена: {product_data['price']} руб.\n"
                     f"Рейтинг товара: {product_data['rating']}\n"
                     f"Количество на складе: {product_data['stock_quantity']}",
-                    reply_markup=create_subscribe_button(artikul)  # Добавляем кнопку подписки
+                    reply_markup=create_subscribe_button(artikul)  
                 )
 
-            await state.clear()  # Очищаем состояние
+            await state.clear()
         except ValueError:
             await message.answer("Попробуйте снова, отправьте правильный артикул (число).",
                                  reply_markup=get_keyboard_start())
@@ -149,13 +141,10 @@ async def get_product_data(message: types.Message, state: FSMContext):
 async def add_product_data(message: types.Message, state: FSMContext):
     async with SessionLocal() as db:
         try:
-            artikul = int(message.text.strip())  # Преобразуем в int
-
-            # Проверка, есть ли товар в базе данных
+            artikul = int(message.text.strip())
             product_data = await get_product_from_db(artikul, db)
 
             if not product_data:
-                # Если товара нет, пытаемся добавить его в базу через API
                 added_product = await add_product_to_db(artikul, db)
                 if added_product:
                     product_data = added_product
@@ -177,7 +166,7 @@ async def add_product_data(message: types.Message, state: FSMContext):
                 await message.answer("Товар с таким артикулом уже есть в базе.",
                                      reply_markup=get_keyboard_start())
 
-            await state.clear()  # Очищаем состояние
+            await state.clear() 
 
         except ValueError:
             await message.answer("Попробуйте снова, отправьте правильный артикул (число).",
@@ -204,7 +193,6 @@ async def handle_subscribe(callback_query: types.CallbackQuery, state: FSMContex
     await callback_query.answer()
 
 
-# Основная функция для запуска бота
 async def main():
     await dp.start_polling(bot)
 
