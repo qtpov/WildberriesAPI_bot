@@ -4,7 +4,7 @@ from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_ERROR
 import logging
 from app.core.configurate import SessionLocal
 from sqlalchemy.future import select
-from app.api.v1.utils import fetch_product_data  # Импорт из utils.py
+from app.api.v1.utils import fetch_product_data  
 from db.models import Product
 from datetime import datetime
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
@@ -18,11 +18,11 @@ logging.basicConfig(level=logging.INFO)
 
 # Конфигурация хранилища задач для персистентности
 jobstores = {
-    'default': SQLAlchemyJobStore(url='sqlite:///jobs.sqlite')  # Или используйте вашу БД
+    'default': SQLAlchemyJobStore(url='sqlite:///jobs.sqlite')  
 }
 
 def load_jobs():
-    """Загружаем все задачи, сохраненные в базе данных."""
+    
     scheduler.resume()  # Восстанавливаем задачи
     logging.info("Scheduler jobs resumed from database.")
 
