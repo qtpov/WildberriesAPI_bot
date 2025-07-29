@@ -6,7 +6,6 @@ from fastapi import HTTPException
 logging.basicConfig(level=logging.INFO)
 
 async def fetch_product_data(artikul: int):
-    """Получение данных о продукте с API Wildberries"""
     url = f"https://card.wb.ru/cards/v1/detail?appType=1&curr=rub&dest=-1257786&spp=30&nm={artikul}"
     logging.info(f"Fetching product data for artikul {artikul}")
 
