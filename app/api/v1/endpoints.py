@@ -8,13 +8,12 @@ from sqlalchemy.future import select
 from pydantic import BaseModel
 from app.core.configurate import SessionLocal, scheduler
 from db.models import Product
-from app.api.v1.utils import fetch_product_data  # Импорт из utils.py
-# Остальной код без изменений
+from app.api.v1.utils import fetch_product_data  
+
 
 
 from app.api.v1.scheduler import scheduled_product_update
 
-# Настройка логирования
 logging.basicConfig(level=logging.INFO)
 
 router = APIRouter()
