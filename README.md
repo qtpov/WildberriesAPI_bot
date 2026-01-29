@@ -62,11 +62,11 @@ GET /api/v1/subscribe/{artikul}
 
 ## 🛠 Используемые технологии
 
--Python 3.10+
--FastAPI
--aiogram 3
--SQLAlchemy (async)
--PostgreSQL
--aiohttp
--APScheduler
--Pydantic v2
+- Python 3.10+
+- FastAPI
+- aiogram 3
+- SQLAlchemy (async)
+- PostgreSQL
+- aiohttp
+- APScheduler
+- Pydantic v2
